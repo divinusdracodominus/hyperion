@@ -1,0 +1,1 @@
+echo @GET["arg1"]

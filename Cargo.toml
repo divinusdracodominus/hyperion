@@ -3,13 +3,21 @@ name = "hyperion"
 version = "0.1.0"
 authors = ["Julian Lazaras <umbrasdracodominus@gmail.com>"]
 edition = "2018"
+keywords = ["web server", "http", "LAMP", "ion", "shil"]
+description = "simple LAMP/web stack alternative written to use ion in place of PHP"
+license = "MIT"
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 ion-shell = {git = "https://github.com/redox-os/ion"}
 sqlite = "*"
-http = "*"
-rustls = "*"
-tokio = {features = ["full"]}
 log = "*"
+futures-util = "*"
+tokio = {features = ["full"]}
+tokio-rustls = "*"
+async-stream = "*"
+hyper = {version = "0.14.11", features = ["full"]}
+rustls = "*"
+small = { git = "https://gitlab.redox-os.org/redox-os/small", features = ["std"] }
