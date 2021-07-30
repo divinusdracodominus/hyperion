@@ -1,0 +1,3 @@
+echo $username
+echo $password
+echo $arg1

@@ -21,3 +21,4 @@ async-stream = "*"
 hyper = {version = "0.14.11", features = ["full"]}
 rustls = "*"
 small = { git = "https://gitlab.redox-os.org/redox-os/small", features = ["std"] }
+lazy_static = "*"
