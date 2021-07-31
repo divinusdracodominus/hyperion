@@ -1,3 +1,1 @@
-echo $username
-echo $password
-echo $arg1
+echo "<h1> $username </h1>";

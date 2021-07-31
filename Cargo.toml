@@ -11,14 +11,21 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+libloading = "*"
 ion-shell = {git = "https://github.com/redox-os/ion"}
 sqlite = "*"
-log = "*"
+daemonize = "*"
 futures-util = "*"
 tokio = {features = ["full"]}
 tokio-rustls = "*"
 async-stream = "*"
 hyper = {version = "0.14.11", features = ["full"]}
 rustls = "*"
+serde = "*"
+serde_derive = "*"
+ron = "*"
+serde_json = "*"
+toml = "*"
+structopt = "*"
+walkdir = "*"
 small = { git = "https://gitlab.redox-os.org/redox-os/small", features = ["std"] }
-lazy_static = "*"
