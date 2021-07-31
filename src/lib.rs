@@ -3,11 +3,13 @@ extern crate serde_derive;
 #[macro_use]
 extern crate structopt;
 
-use ion_shell::{Shell, Value};
+use ion_shell::{Shell, Value, types::Function};
 use small::string::String as string;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
+use std::rc::Rc;
+
 pub mod modules;
 
 use std::path::PathBuf;
@@ -88,16 +90,20 @@ pub fn run_script(
     
     let file = std::fs::File::create(&html_path).unwrap();
     shell.stdout(Some(file));
+    
+    let mut get_params = HashMap::new();
+    let mut post_params = HashMap::new();
+
     for (key, value) in get.into_iter() {
-        shell
-            .variables_mut()
-            .set(&key, Value::Str(string::from_string(value)));
+        get_params.insert(string::from_string(key), Value::Str(string::from_string(value)));
     }
     for (key, value) in post.into_iter() {
-        shell
-            .variables_mut()
-            .set(&key, Value::Str(string::from_string(value)));
+        post_params.insert(string::from_string(key), Value::Str(string::from_string(value)));
     }
+    
+    shell.variables_mut().set("GET", get_params);
+    shell.variables_mut().set("POST", post_params);
+    
     shell.variables_mut().set("clientip", Value::Str(string::from_string(ipaddr)));
 
     if let Ok(file) = File::open(ion_path) {

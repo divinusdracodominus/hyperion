@@ -1,1 +1,1 @@
-echo "<h1> $username </h1>";
+echo "<h1>hello @GET['username']</h1>";
