@@ -16,8 +16,8 @@ use std::sync::Arc;
 use std::sync::RwLock;
 
 lazy_static! {
-    static ref SESSIONS: Arc<RwLock<HashMap<String, HashMap<string, string>>>> =
-        Arc::new(RwLock::new(HashMap::new())) ;
+    static ref SESSIONS: RwLock<HashMap<String, HashMap<String, String>>> =
+        RwLock::new(HashMap::new());
 }
 
 //pub mod modules;
@@ -38,11 +38,6 @@ pub struct Arguments {
     pub config: Option<String>,
 }
 
-/*#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct HyperionConfig {
-    pub libs: Vec<crate::module::LibraryHeader>,
-}*/
-
 pub fn start_session(_: &[types::Str], shell: &mut Shell) -> Status {
     if shell.variables().get("SESSIONID").is_none() {
         let s: String = rand::thread_rng()
@@ -55,6 +50,45 @@ pub fn start_session(_: &[types::Str], shell: &mut Shell) -> Status {
         shell
             .variables_mut()
             .set("SESSIONID", Value::Str(string::from_string(s)));
+    }
+    Status::SUCCESS
+}
+
+/// SESSIONS variable in ion won't update until next request
+pub fn set_session_variable(args: &[types::Str], shell: &mut Shell) -> Status {
+    /*for x in 0..args.len() {
+        println!("arg[{}] {}", x, args[x]);
+    }*/
+    println!("before check");
+    if(args.len()) != 3 {
+        return Status::error("expected only two arguments variable name, value");
+    }
+    println!("before lock");
+    let mut sessions_lock = SESSIONS.write().unwrap();
+    println!("lock aquired");
+    if let Some(id) = shell.variables().get("SESSIONID") {
+        println!("session id: {:?}", id);
+        match id {
+            Value::Str(s) => {       
+                
+                /*for (l_key, l_val) in sessions_lock.iter(){
+                    println!("l_key: {}, l_val: {:?}", l_key, l_val);
+                }*/
+                let sessions_list = match sessions_lock.get_mut(s.as_str()) {
+                    Some(v) => { 
+                        v
+                    },
+                    None => {
+                        return Status::error("session_start never called");
+                    }
+                };
+                
+                sessions_list.insert(args[1].as_str().to_string(), args[2].as_str().to_string());
+            },
+            _ => return Status::error("SESSIONID must be a str")
+        }
+    }else{
+        return Status::error("session_start wasn't called");
     }
     Status::SUCCESS
 }
@@ -93,11 +127,25 @@ pub fn run_script(
         }
     };
     let mut shell = Shell::new();
-    /*shell.builtins_mut().add("start_session", move |_, _| {
-
-    });*/
+    
+    let mut session_params = HashMap::new();
     let session_active = if let Some(session_id) = cookies.get("SESSIONID") {
+        
         shell.variables_mut().set("SESSIONID", Value::Str(string::from_string(session_id.to_string())));
+        println!("recovered id: {}", session_id);
+        let mut session_lock = SESSIONS.write().unwrap();
+        for (l_key, l_val) in session_lock.iter() {
+            println!("l_key = {} l_value = {:?}", l_key, l_val);
+        }
+        if let Some(session_vals) = session_lock.get(session_id) {
+            println!("found session values: {:?}", session_vals);
+            for (key, value) in session_vals.iter() {
+                println!("setting key = {}, value = {}", key, value);
+                session_params.insert(string::from_string(key.to_string()), Value::Str(string::from_string(value.to_string())));
+            }
+        }else{
+            session_lock.insert(session_id.to_string(), HashMap::new());
+        }
         true
     }else { false };
     let dir = std::env::temp_dir().join("hyperion");
@@ -142,13 +190,18 @@ pub fn run_script(
     shell.variables_mut().set("COOKIES", cookie_vals);
     shell.variables_mut().set("GET", get_params);
     shell.variables_mut().set("POST", post_params);
+    shell.variables_mut().set("SESSION", session_params);
+
+    for (key, value) in shell.variables().variables() {
+        println!("key: {}, variable: {:?}", key, value);
+    }
 
     shell
         .variables_mut()
         .set("clientip", Value::Str(string::from_string(ipaddr)));
 
-    shell.builtins_mut().add("session_start", & start_session, "start active session accross HTTP requests functionally similar to php's session_start(), expects that the COOKIE variable is of type HashMap or hmap");
-
+    shell.builtins_mut().add("session_start", &start_session, "start active session accross HTTP requests functionally similar to php's session_start(), expects that the COOKIE variable is of type HashMap or hmap");
+    shell.builtins_mut().add("set_session_variable", &set_session_variable, "sets a session variable held by the server in the form, variable_name, variable_value please not this won't update @SESSION variable");
     if let Ok(file) = File::open(ion_path) {
         if let Err(why) = shell.execute_command(file) {
             println!("ERROR: my-application: error in config file: {}", why);

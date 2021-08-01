@@ -5,3 +5,5 @@ echo "<h1>hello $query</h1>";
 session_start
 
 echo $SESSIONID
+set_session_variable "active", "true"
+echo "session variable: active = @SESSION['active']"
