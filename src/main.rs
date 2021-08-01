@@ -1,26 +1,37 @@
 #![feature(async_closure)]
-use std::fs::File;
-use tokio::sync::mpsc::{channel, Receiver, Sender};
 
-use futures_util::future::join;
 use hyper::server::conn::Http;
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{body::HttpBody, Body, Method, Request, Response, Server};
-use ion_shell::{
-    builtins::Status, types, types::Function, BuiltinFunction, BuiltinMap, Shell, Value,
-};
-use small::string::String as string;
+use hyper::service::{service_fn};
+use hyper::{body::HttpBody, Body, Method, Request, Response};
 use std::collections::HashMap;
-use std::io::Read;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
+async fn read_cookies(request: &Request<Body>) -> HashMap<String, String> {
+    let mut cookie_map: HashMap<String, String> = HashMap::new();
+    for (key, value) in request.headers().iter() {
+        if key == "cookie" {
+            println!("value: {}", value.to_str().unwrap());
+            
+            let vals: Vec<&str> = value.to_str().unwrap().split(';').collect();
+            for val in vals.iter() {
+                let parts: Vec<&str> = val.split('=').collect();
+                cookie_map.insert(
+                    parts.get(0).unwrap().to_string(),
+                    parts.get(1).unwrap().to_string(),
+                );
+            }
+        }
+    }
+    cookie_map
+}
+
 async fn read_post(request: &mut Request<Body>) -> HashMap<String, String> {
     let body = String::from_utf8(request.data().await.unwrap().unwrap().to_vec()).unwrap();
-    let args: Vec<&str> = body.split("&").collect();
+    let args: Vec<&str> = body.split('&').collect();
     let mut ret = HashMap::new();
     for arg in args.iter() {
-        let parts: Vec<&str> = arg.split("=").collect();
+        let parts: Vec<&str> = arg.split('=').collect();
         ret.insert(
             parts.get(0).unwrap().to_string(),
             parts.get(1).unwrap().to_string(),
@@ -32,10 +43,10 @@ async fn read_post(request: &mut Request<Body>) -> HashMap<String, String> {
 fn read_get(request: &Request<Body>) -> HashMap<String, String> {
     match request.uri().query() {
         Some(param_list) => {
-            let args: Vec<&str> = param_list.split("&").collect();
+            let args: Vec<&str> = param_list.split('&').collect();
             let mut ret = HashMap::new();
             for arg in args.iter() {
-                let parts: Vec<&str> = arg.split("=").collect();
+                let parts: Vec<&str> = arg.split('=').collect();
                 ret.insert(
                     parts.get(0).unwrap().to_string(),
                     parts.get(1).unwrap().to_string(),
@@ -51,10 +62,13 @@ fn read_get(request: &Request<Body>) -> HashMap<String, String> {
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     //pretty_env_logger::init();
 
-    let (s, mut r): (
-        Sender<(String, HashMap<String, String>, HashMap<String, String>)>,
-        Receiver<(String, HashMap<String, String>, HashMap<String, String>)>,
-    ) = channel(16);
+    let time = httpdate::HttpDate::from(
+        std::time::SystemTime::now()
+            .checked_add(std::time::Duration::from_secs(6 * 60))
+            .unwrap(),
+    );
+    println!("6 hours: {}", time);
+    
 
     let addr: SocketAddr = ([127, 0, 0, 1], 8080).into();
 
@@ -63,16 +77,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let (tcp_stream, ipaddr) = tcp_listener.accept().await?;
         println!("new connection from: {}", ipaddr);
         //tokio::task::spawn(async move {
-        let sender = s.clone();
+        
         if let Err(http_err) = Http::new()
             .http1_only(true)
             .http1_keep_alive(true)
             .serve_connection(
                 tcp_stream,
                 service_fn(move |mut request| {
-                    let send = sender.clone();
+                    
                     async move {
-                        let path = if let Some(path) = request.uri().path().strip_prefix("/") {
+                        let path = if let Some(path) = request.uri().path().strip_prefix('/') {
                             path.to_string()
                         } else {
                             request.uri().path().to_string()
@@ -83,13 +97,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         } else {
                             HashMap::new()
                         };
-                        let result = tokio::task::spawn_blocking(move || {
-                            hyperion::run_script(format!("{}", ipaddr), path, get, post)
+                        let cookie_map = read_cookies(&request).await;
+                        let (result, cookies) = tokio::task::spawn_blocking(move || {
+                            hyperion::run_script(format!("{}", ipaddr), path, get, post, cookie_map)
                         })
                         .await
                         .unwrap();
-
-                        Ok::<_, hyper::Error>(Response::new(Body::from(result)))
+                        let mut response = Response::new(Body::from(result));
+                        for (name, value) in cookies.iter() {
+                            response.headers_mut().insert(
+                                hyper::header::SET_COOKIE,
+                                format!("{}={}", name, value).parse().unwrap(),
+                            );
+                        }
+                        Ok::<_, hyper::Error>(response)
                     }
                 }),
             )

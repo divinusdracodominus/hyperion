@@ -1,6 +1,6 @@
 [package]
 name = "hyperion"
-version = "0.1.0"
+version = "0.1.0-alpha1"
 authors = ["Julian Lazaras <umbrasdracodominus@gmail.com>"]
 edition = "2018"
 keywords = ["web server", "http", "LAMP", "ion", "shil"]
@@ -28,4 +28,7 @@ serde_json = "*"
 toml = "*"
 structopt = "*"
 walkdir = "*"
+httpdate = "*"
+lazy_static = "*"
 small = { git = "https://gitlab.redox-os.org/redox-os/small", features = ["std"] }
+rand = "*"

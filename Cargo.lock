@@ -497,14 +497,17 @@ dependencies = [
 
 [[package]]
 name = "hyperion"
-version = "0.1.0"
+version = "0.1.0-alpha1"
 dependencies = [
  "async-stream",
  "daemonize",
  "futures-util",
+ "httpdate",
  "hyper",
  "ion-shell",
+ "lazy_static",
  "libloading",
+ "rand",
  "ron",
  "rustls",
  "serde",

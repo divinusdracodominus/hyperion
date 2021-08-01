@@ -5,10 +5,8 @@
 /// ```
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LibraryHeader {
-    name: String,
-    functions: Vec<String>,
-    // ensure a specific object file is as expected
-    hash: String,
+    pub path: PathBuf,
+    pub functions: Vec<String>,
 }
 
 pub struct DyLib {

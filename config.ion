@@ -1,1 +1,7 @@
-echo "<h1>hello @GET['username']</h1>";
+let query = @GET["variable1"];
+
+echo "<h1>hello $query</h1>";
+
+session_start
+
+echo $SESSIONID
