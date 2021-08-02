@@ -12,7 +12,6 @@ async fn read_cookies(request: &Request<Body>) -> HashMap<String, String> {
     let mut cookie_map: HashMap<String, String> = HashMap::new();
     for (key, value) in request.headers().iter() {
         if key == "cookie" {
-            println!("value: {}", value.to_str().unwrap());
 
             let vals: Vec<&str> = value.to_str().unwrap().split(';').collect();
             for val in vals.iter() {
@@ -68,7 +67,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .checked_add(std::time::Duration::from_secs(6 * 60))
             .unwrap(),
     );
-    println!("6 hours: {}", time);
 
     let addr: SocketAddr = ([127, 0, 0, 1], 8080).into();
 
@@ -112,11 +110,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                                 cookie_map,
                                 session_handle.clone(),
                                 |args, shell| {
-                                    hyperion::set_session_variable(args, shell, session_handle.clone())
+                                    hyperion::set_session_variable(
+                                        args,
+                                        shell,
+                                        session_handle.clone(),
+                                    )
                                 },
                                 |args, shell| {
                                     hyperion::start_session(args, shell, session_handle.clone())
-                                }
+                                },
                             )
                         })
                         .await

@@ -1,10 +1,20 @@
 let query = @GET["variable1"];
+let username = @POST["username"]
+let password = @POST["password"]
+let email = @POST["email"]
 
-echo "<h1>hello $query</h1>";
+let hashed = $(scrypt_hash "$password")
+let result = $(scrypt_verify "random" "$hashed")
 
-session_start
+if $result == "true"
+    session_start
+    echo "<html><head><title>still experimenting</title></head><body><script>location.replace(\"./loggedin.ion\");</script></body></html>"
+    set_session_variable "active" "true"
+else
+    echo "<h2>login failed</h2>";
+end
+let active = @SESSION["active"]
 
-echo $SESSIONID
-set_session_variable "active" "true"
-let active = @SESSION["active"];
-echo "session variable: active = $active"
+
+
+# I have to wonder how can I handle SQL connections

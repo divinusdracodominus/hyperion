@@ -32,3 +32,9 @@ httpdate = "*"
 lazy_static = "*"
 small = { git = "https://gitlab.redox-os.org/redox-os/small", features = ["std"] }
 rand = "*"
+hex = "*"
+scrypt = "*"
+rand_core = "*"
+
+[build-dependencies]
+scrypt = "*"
