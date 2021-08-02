@@ -69,16 +69,11 @@ pub fn set_session_variable(args: &[types::Str], shell: &mut Shell, sessions_han
     if (args.len()) != 3 {
         return Status::error("expected only two arguments variable name, value");
     }
-    println!("before lock");
     let mut sessions_lock = sessions_handle.write().unwrap();
-    println!("lock aquired");
+    
     if let Some(id) = shell.variables().get("SESSIONID") {
-        println!("session id: {:?}", id);
         match id {
             Value::Str(s) => {
-                /*for (l_key, l_val) in sessions_lock.iter(){
-                    println!("l_key: {}, l_val: {:?}", l_key, l_val);
-                }*/
                 let sessions_list = match sessions_lock.get_mut(s.as_str()) {
                     Some(v) => v,
                     None => {
@@ -89,6 +84,20 @@ pub fn set_session_variable(args: &[types::Str], shell: &mut Shell, sessions_han
                 sessions_list.insert(args[1].as_str().to_string(), args[2].as_str().to_string());
             }
             _ => return Status::error("SESSIONID must be a str"),
+        }
+        if let Some(sessions_var) = shell.variables_mut().get_mut("SESSION") {
+            match sessions_var {
+                Value::HashMap(map) => {
+                    if let Some(found) = map.get_mut(&args[1]) {
+                        *found = Value::Str(args[2].clone());
+                    }else{
+                        map.insert(args[1].clone(), Value::Str(args[2].clone()));
+                    }
+                },
+                _ => return Status::error("unexpected error occured, please file an issue at https://github.com/divinusdracodominus/hyperion, mention that SESSION is not a map"),
+            }
+        }else{
+            return Status::error("unexpected error occured, please file an issue at https://github.com/divinusdracodominus/hyperion, mention that SESSION is unset");
         }
     } else {
         return Status::error("session_start wasn't called");
