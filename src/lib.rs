@@ -1,3 +1,4 @@
+#![feature(trait_alias)]
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
@@ -6,7 +7,6 @@ extern crate lazy_static;
 use ion_shell::{builtins::Status, types, types::Function, Shell, Value};
 use rand::distributions::Alphanumeric;
 use rand::Rng;
-use std::time::{SystemTime, Duration};
 use small::string::String as string;
 use std::collections::HashMap;
 use std::fs::File;
@@ -14,11 +14,13 @@ use std::io::Read;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::time::{Duration, SystemTime};
 
+/*// yes this will leak, I know
 lazy_static! {
-    static ref SESSIONS: RwLock<HashMap<String, HashMap<String, String>>> =
+    static ref sessions_handle: RwLock<HashMap<String, HashMap<String, String>>> =
         RwLock::new(HashMap::new());
-}
+}*/
 
 //pub mod modules;
 
@@ -38,14 +40,18 @@ pub struct Arguments {
     pub config: Option<String>,
 }
 
-pub fn start_session(_: &[types::Str], shell: &mut Shell) -> Status {
+pub fn start_session(
+    _: &[types::Str],
+    shell: &mut Shell,
+    sessions_handle: Arc<RwLock<HashMap<String, HashMap<String, String>>>>
+) -> Status {
     if shell.variables().get("SESSIONID").is_none() {
         let s: String = rand::thread_rng()
             .sample_iter(&Alphanumeric)
             .take(16)
             .map(char::from)
             .collect();
-        let mut session_list = SESSIONS.write().unwrap();
+        let mut session_list = sessions_handle.write().unwrap();
         session_list.insert(s.clone(), HashMap::new());
         shell
             .variables_mut()
@@ -54,52 +60,57 @@ pub fn start_session(_: &[types::Str], shell: &mut Shell) -> Status {
     Status::SUCCESS
 }
 
-/// SESSIONS variable in ion won't update until next request
-pub fn set_session_variable(args: &[types::Str], shell: &mut Shell) -> Status {
+/// sessions_handle variable in ion won't update until next request
+pub fn set_session_variable(args: &[types::Str], shell: &mut Shell, sessions_handle: Arc<RwLock<HashMap<String, HashMap<String, String>>>>) -> Status {
     /*for x in 0..args.len() {
         println!("arg[{}] {}", x, args[x]);
     }*/
     println!("before check");
-    if(args.len()) != 3 {
+    if (args.len()) != 3 {
         return Status::error("expected only two arguments variable name, value");
     }
     println!("before lock");
-    let mut sessions_lock = SESSIONS.write().unwrap();
+    let mut sessions_lock = sessions_handle.write().unwrap();
     println!("lock aquired");
     if let Some(id) = shell.variables().get("SESSIONID") {
         println!("session id: {:?}", id);
         match id {
-            Value::Str(s) => {       
-                
+            Value::Str(s) => {
                 /*for (l_key, l_val) in sessions_lock.iter(){
                     println!("l_key: {}, l_val: {:?}", l_key, l_val);
                 }*/
                 let sessions_list = match sessions_lock.get_mut(s.as_str()) {
-                    Some(v) => { 
-                        v
-                    },
+                    Some(v) => v,
                     None => {
                         return Status::error("session_start never called");
                     }
                 };
-                
+
                 sessions_list.insert(args[1].as_str().to_string(), args[2].as_str().to_string());
-            },
-            _ => return Status::error("SESSIONID must be a str")
+            }
+            _ => return Status::error("SESSIONID must be a str"),
         }
-    }else{
+    } else {
         return Status::error("session_start wasn't called");
     }
     Status::SUCCESS
 }
 
-pub fn run_script(
+pub trait IonBuiltinBound = Fn(&[types::Str], &mut Shell) -> Status + for<'r, 's, 't0> std::ops::Fn(&'r [small::String], &'s mut ion_shell::Shell<'t0>) -> Status + Send;
+
+pub fn run_script<F, T>(
     ipaddr: String,
     path: String,
     get: HashMap<String, String>,
     post: HashMap<String, String>,
     mut cookies: HashMap<String, String>,
-) -> (Vec<u8>, HashMap<String, String>) {
+    sessions_handle: Arc<RwLock<HashMap<String, HashMap<String, String>>>>,
+    set_session_closure: F,
+    start_session: T,
+) -> (Vec<u8>, HashMap<String, String>) 
+    where F: Fn(&[types::Str], &mut Shell) -> Status + for<'r, 's, 't0> std::ops::Fn(&'r [small::String], &'s mut ion_shell::Shell<'t0>) -> Status,
+    T: Fn(&[types::Str], &mut Shell) -> Status + for<'r, 's, 't0> std::ops::Fn(&'r [small::String], &'s mut ion_shell::Shell<'t0>) -> Status,
+{
     let query_path = PathBuf::new()
         .join(std::env::current_dir().unwrap())
         .join(&path);
@@ -127,13 +138,15 @@ pub fn run_script(
         }
     };
     let mut shell = Shell::new();
-    
+
     let mut session_params = HashMap::new();
     let session_active = if let Some(session_id) = cookies.get("SESSIONID") {
-        
-        shell.variables_mut().set("SESSIONID", Value::Str(string::from_string(session_id.to_string())));
+        shell.variables_mut().set(
+            "SESSIONID",
+            Value::Str(string::from_string(session_id.to_string())),
+        );
         println!("recovered id: {}", session_id);
-        let mut session_lock = SESSIONS.write().unwrap();
+        let mut session_lock = sessions_handle.write().unwrap();
         for (l_key, l_val) in session_lock.iter() {
             println!("l_key = {} l_value = {:?}", l_key, l_val);
         }
@@ -141,13 +154,18 @@ pub fn run_script(
             println!("found session values: {:?}", session_vals);
             for (key, value) in session_vals.iter() {
                 println!("setting key = {}, value = {}", key, value);
-                session_params.insert(string::from_string(key.to_string()), Value::Str(string::from_string(value.to_string())));
+                session_params.insert(
+                    string::from_string(key.to_string()),
+                    Value::Str(string::from_string(value.to_string())),
+                );
             }
-        }else{
+        } else {
             session_lock.insert(session_id.to_string(), HashMap::new());
         }
         true
-    }else { false };
+    } else {
+        false
+    };
     let dir = std::env::temp_dir().join("hyperion");
 
     if !dir.exists() {
@@ -201,7 +219,7 @@ pub fn run_script(
         .set("clientip", Value::Str(string::from_string(ipaddr)));
 
     shell.builtins_mut().add("session_start", &start_session, "start active session accross HTTP requests functionally similar to php's session_start(), expects that the COOKIE variable is of type HashMap or hmap");
-    shell.builtins_mut().add("set_session_variable", &set_session_variable, "sets a session variable held by the server in the form, variable_name, variable_value please not this won't update @SESSION variable");
+    shell.builtins_mut().add("set_session_variable", &set_session_closure, "sets a session variable held by the server in the form, variable_name, variable_value please not this won't update @SESSION variable");
     if let Ok(file) = File::open(ion_path) {
         if let Err(why) = shell.execute_command(file) {
             println!("ERROR: my-application: error in config file: {}", why);
@@ -210,8 +228,15 @@ pub fn run_script(
 
     if let Some(id) = shell.variables().get("SESSIONID") {
         if !session_active {
-            let experation = httpdate::HttpDate::from(SystemTime::now().checked_add(Duration::from_secs(60*4)).unwrap());
-            cookies.insert("SESSIONID".to_string(), format!("{}; Expires={}", id, experation));
+            let experation = httpdate::HttpDate::from(
+                SystemTime::now()
+                    .checked_add(Duration::from_secs(60 * 4))
+                    .unwrap(),
+            );
+            cookies.insert(
+                "SESSIONID".to_string(),
+                format!("{}; Expires={}", id, experation),
+            );
         }
     }
 

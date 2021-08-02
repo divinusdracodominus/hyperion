@@ -1,10 +1,11 @@
 #![feature(async_closure)]
 
 use hyper::server::conn::Http;
-use hyper::service::{service_fn};
+use hyper::service::service_fn;
 use hyper::{body::HttpBody, Body, Method, Request, Response};
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::{Arc, RwLock};
 use tokio::net::TcpListener;
 
 async fn read_cookies(request: &Request<Body>) -> HashMap<String, String> {
@@ -12,7 +13,7 @@ async fn read_cookies(request: &Request<Body>) -> HashMap<String, String> {
     for (key, value) in request.headers().iter() {
         if key == "cookie" {
             println!("value: {}", value.to_str().unwrap());
-            
+
             let vals: Vec<&str> = value.to_str().unwrap().split(';').collect();
             for val in vals.iter() {
                 let parts: Vec<&str> = val.split('=').collect();
@@ -68,23 +69,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .unwrap(),
     );
     println!("6 hours: {}", time);
-    
 
     let addr: SocketAddr = ([127, 0, 0, 1], 8080).into();
+
+    let SESSIONS: Arc<RwLock<HashMap<String, HashMap<String, String>>>> =
+        Arc::new(RwLock::new(HashMap::new()));
 
     let tcp_listener = TcpListener::bind(addr).await?;
     loop {
         let (tcp_stream, ipaddr) = tcp_listener.accept().await?;
         println!("new connection from: {}", ipaddr);
         //tokio::task::spawn(async move {
-        
+
+        let session_cloner = SESSIONS.clone();
+
         if let Err(http_err) = Http::new()
             .http1_only(true)
             .http1_keep_alive(true)
             .serve_connection(
                 tcp_stream,
                 service_fn(move |mut request| {
-                    
+                    let session_handle = session_cloner.clone();
                     async move {
                         let path = if let Some(path) = request.uri().path().strip_prefix('/') {
                             path.to_string()
@@ -99,7 +104,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         };
                         let cookie_map = read_cookies(&request).await;
                         let (result, cookies) = tokio::task::spawn_blocking(move || {
-                            hyperion::run_script(format!("{}", ipaddr), path, get, post, cookie_map)
+                            hyperion::run_script(
+                                format!("{}", ipaddr),
+                                path,
+                                get,
+                                post,
+                                cookie_map,
+                                session_handle.clone(),
+                                |args, shell| {
+                                    hyperion::set_session_variable(args, shell, session_handle.clone())
+                                },
+                                |args, shell| {
+                                    hyperion::start_session(args, shell, session_handle.clone())
+                                }
+                            )
                         })
                         .await
                         .unwrap();
