@@ -14,7 +14,3 @@ else
     echo "<h2>login failed</h2>";
 end
 let active = @SESSION["active"]
-
-
-
-# I have to wonder how can I handle SQL connections

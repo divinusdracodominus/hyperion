@@ -2,72 +2,14 @@
 
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
-use hyper::{body::HttpBody, Body, Method, Request, Response};
+use hyper::{Body, Response};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use tokio::net::TcpListener;
 
-async fn read_cookies(request: &Request<Body>) -> HashMap<String, String> {
-    let mut cookie_map: HashMap<String, String> = HashMap::new();
-    for (key, value) in request.headers().iter() {
-        if key == "cookie" {
-
-            let vals: Vec<&str> = value.to_str().unwrap().split(';').collect();
-            for val in vals.iter() {
-                let parts: Vec<&str> = val.split('=').collect();
-                cookie_map.insert(
-                    parts.get(0).unwrap().to_string(),
-                    parts.get(1).unwrap().to_string(),
-                );
-            }
-        }
-    }
-    cookie_map
-}
-
-async fn read_post(request: &mut Request<Body>) -> HashMap<String, String> {
-    let body = String::from_utf8(request.data().await.unwrap().unwrap().to_vec()).unwrap();
-    let args: Vec<&str> = body.split('&').collect();
-    let mut ret = HashMap::new();
-    for arg in args.iter() {
-        let parts: Vec<&str> = arg.split('=').collect();
-        ret.insert(
-            parts.get(0).unwrap().to_string(),
-            parts.get(1).unwrap().to_string(),
-        );
-    }
-    ret
-}
-
-fn read_get(request: &Request<Body>) -> HashMap<String, String> {
-    match request.uri().query() {
-        Some(param_list) => {
-            let args: Vec<&str> = param_list.split('&').collect();
-            let mut ret = HashMap::new();
-            for arg in args.iter() {
-                let parts: Vec<&str> = arg.split('=').collect();
-                ret.insert(
-                    parts.get(0).unwrap().to_string(),
-                    parts.get(1).unwrap().to_string(),
-                );
-            }
-            ret
-        }
-        None => HashMap::new(),
-    }
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    //pretty_env_logger::init();
-
-    let time = httpdate::HttpDate::from(
-        std::time::SystemTime::now()
-            .checked_add(std::time::Duration::from_secs(6 * 60))
-            .unwrap(),
-    );
-
     let addr: SocketAddr = ([127, 0, 0, 1], 8080).into();
 
     let SESSIONS: Arc<RwLock<HashMap<String, HashMap<String, String>>>> =
@@ -88,27 +30,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 tcp_stream,
                 service_fn(move |mut request| {
                     let session_handle = session_cloner.clone();
+
                     async move {
-                        let path = if let Some(path) = request.uri().path().strip_prefix('/') {
-                            path.to_string()
-                        } else {
-                            request.uri().path().to_string()
-                        };
-                        let get = read_get(&request);
-                        let post = if request.method() == Method::POST {
-                            read_post(&mut request).await
-                        } else {
-                            HashMap::new()
-                        };
-                        let cookie_map = read_cookies(&request).await;
+                        let state = hyperion::ServerState::load(
+                            &mut request,
+                            ipaddr,
+                            session_handle.clone(),
+                            None,
+                        )
+                        .await;
                         let (result, cookies) = tokio::task::spawn_blocking(move || {
-                            hyperion::run_script(
-                                format!("{}", ipaddr),
-                                path,
-                                get,
-                                post,
-                                cookie_map,
-                                session_handle.clone(),
+                            state.run_script(
                                 |args, shell| {
                                     hyperion::set_session_variable(
                                         args,
