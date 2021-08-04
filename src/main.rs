@@ -3,14 +3,23 @@
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
 use hyper::{Body, Response};
+use hyperion::utils::{Config, ConfigArgs};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
+use structopt::StructOpt;
 use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let addr: SocketAddr = ([127, 0, 0, 1], 8080).into();
+
+    let args = ConfigArgs::from_args();
+    /*let config = if let Some(config_path) = args.config {
+
+    }else{
+
+    };*/
 
     let SESSIONS: Arc<RwLock<HashMap<String, HashMap<String, String>>>> =
         Arc::new(RwLock::new(HashMap::new()));

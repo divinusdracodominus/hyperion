@@ -1,11 +1,13 @@
-use ion_shell::builtins::Status;
+use ion_shell::{builtins::Status, types::Str, Shell};
 use libloading::{Library, Symbol};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+pub type HyperionBuiltin = unsafe extern "C" fn(&[Str], &mut Shell) -> Status;
+
 pub struct BuiltinStore {
     libs: HashMap<String, Library>,
-    functions: HashMap<String, Symbol<'static, unsafe extern "C" fn() -> Status>>,
+    functions: HashMap<String, Symbol<'static, HyperionBuiltin>>,
 }
 
 impl BuiltinStore {

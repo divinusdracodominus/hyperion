@@ -3,10 +3,10 @@ let username = @POST["username"]
 let password = @POST["password"]
 let email = @POST["email"]
 
-let hashed = $(scrypt_hash "$password")
-let result = $(scrypt_verify "random" "$hashed")
+let hashed = $(scrypt_hash "$password" ^>> stderr.txt)
+let result = $(scrypt_verify "random" "$hashed" ^>> stderr2.txt)
 
-if $result == "true"
+if test $result == "true"
     session_start
     echo "<html><head><title>still experimenting</title></head><body><script>location.replace(\"./loggedin.ion\");</script></body></html>"
     set_session_variable "active" "true"

@@ -1,0 +1,6 @@
+[book]
+authors = ["Julian Lazaras"]
+language = "en"
+multilingual = false
+src = "src"
+title = "hyperion docs"

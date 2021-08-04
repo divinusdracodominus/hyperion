@@ -1,8 +1,7 @@
 session_start
 let active = @SESSION["active"]
-if $active != "true"
-    echo "<script>window.alert(\"active: $active\");</script>"
-    echo "<script>location.replace('./login.html');</script>"
+if test $active != "true"
+    echo "false"
 else
-    echo "you are now logged in"
+    echo "true"
 end

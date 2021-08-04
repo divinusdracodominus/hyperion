@@ -1,0 +1,5 @@
+fn print_value x file
+    echo "$x" >> $file
+end
+
+print_value "hello world" "test.txt"

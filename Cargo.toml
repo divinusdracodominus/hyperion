@@ -34,7 +34,8 @@ small = { git = "https://gitlab.redox-os.org/redox-os/small", features = ["std"]
 rand = "*"
 hex = "*"
 scrypt = "*"
-rand_core = "*"
+err-derive = "*"
+enum-utils = "*"
 
 [build-dependencies]
 scrypt = "*"

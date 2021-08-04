@@ -1,5 +1,8 @@
-use ion_shell::{builtins::Status, types, Shell};
+use ion_shell::{builtins::Status, types, types::Str, Shell};
+use small::string::String as string;
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
+
 /// this type alias serves as a means of documenting "@SESSION" variable set in ion
 /// on each request "@SESSION" is loaded from an Arc<RwLock<HashMap<String, HashMap<String, String>>>>
 /// where the first HashMap maps SESSIONID to SESSION variables
@@ -37,14 +40,35 @@ pub fn scrypt_hash(args: &[types::Str], _shell: &mut Shell) -> Status {
 /// the form that the script function takes on is
 /// scrypt_verify "password" "hash"
 pub fn scrypt_verify(args: &[types::Str], _shell: &mut Shell) -> Status {
-    let parsed_hash = PasswordHash::new(args[2].as_str()).unwrap();
+    let parsed_hash = match PasswordHash::new(args[2].as_str()) {
+        Ok(v) => v,
+        Err(e) => { return Status::error(format!("{}", e)); }
+    };
     match Scrypt.verify_password(args[1].as_bytes(), &parsed_hash) {
         Ok(_) => println!("true"),
         Err(e) => {
             println!("{}", e);
-            return Status::error(format!("{}", e));
+            //return Status::error(format!("{}", e));
         }
     }
 
     Status::SUCCESS
 }
+
+/*pub fn open_sqlite_conn(args: &[Str], _shell: &mut Shell) -> Status {
+    if(args.len() != 2) {
+        return Status::error("expected only one argument: dbname");
+    }
+    let connections = DBCONNS.write().unwrap();
+    if let Some(conn) = connections.get(args[1]) {
+        Status::SUCCESS
+    }else{
+        match sqlite::Connection::open(args[1]) {
+            Ok(conn) => {
+                connections.insert(args[1].clone(), conn);
+                Status::SUCCESS
+            },
+            Err(e) => Status::error("unable to open database connection")
+        }
+    }
+}*/

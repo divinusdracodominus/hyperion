@@ -1,0 +1,5 @@
+if @SERVER["REQUEST_METHOD"] == "POST"
+    echo "request method is post";
+else
+    echo "this page only handles POST requests";
+end

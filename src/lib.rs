@@ -5,6 +5,12 @@
     gets uploaded
 */
 #![feature(trait_alias)]
+#[macro_use]
+extern crate serde_derive;
+#[macro_use]
+extern crate lazy_static;
+#[macro_use]
+extern crate enum_utils;
 
 pub mod utils;
 
@@ -25,7 +31,7 @@ pub mod utils;
 /// let hashed = $(scrypt_hash "$password")
 /// let result = $(scrypt_verify "random" "$hashed")
 ///
-/// if $result == "true" && username == "cardinal"
+/// if test $result == "true" && username == "cardinal"
 ///    session_start
 ///    echo "<html>
 ///         <head>
@@ -43,6 +49,9 @@ pub mod utils;
 /// end
 /// ```
 pub mod builtins;
+
+/// Contains utilities for loading dynamically linked
+/// plugins, still under construction
 pub mod modules;
 
 use hyper::{Body, Method, Request};
@@ -51,16 +60,32 @@ use rand::distributions::Alphanumeric;
 use rand::Rng;
 use small::string::String as string;
 use std::collections::HashMap;
+use std::convert::{TryFrom, TryInto};
 use std::fs::File;
 use std::io::Read;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::time::{Duration, SystemTime};
 
 const NOTFOUND: &'static str = include_str!("notfound.html");
+
+/// builtin function that sets up an individual session, specifically it generates teh session ID, and sets SESSIONID variable in ion
+/// this also creates a new entry in the global session table, aka Arc<RwLock<HashMap<String, HashMap<String, String>>>> that maps
+/// the session id cookies to a collection of key value pairs stored in the nested HashMap
+///
+/// # Example
+/// ```
+/// # similar to PHP to session_start() this function
+/// # must be called before attempting to add new session variables
+/// # while it is possible that the session map may already exist
+/// # that isn't a garuntee, @SESSION should be valid regardless
+/// start_session
+/// ```
+///
 pub fn start_session(
     _: &[types::Str],
     shell: &mut Shell,
@@ -79,6 +104,40 @@ pub fn start_session(
             .set("SESSIONID", Value::Str(string::from_string(s)));
     }
     Status::SUCCESS
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, FromStr)]
+pub enum RequestMethod {
+    POST,
+    GET,
+    PUT,
+    DELETE,
+    HEAD,
+    CONNECT,
+    TRACE,
+    PATCH,
+}
+
+impl TryFrom<&Method> for RequestMethod {
+    type Error = ();
+    fn try_from(method: &Method) -> Result<RequestMethod, Self::Error> {
+        method.as_str().parse()
+    }
+}
+
+impl std::string::ToString for RequestMethod {
+    fn to_string(&self) -> String {
+        match self {
+            Self::POST => String::from("POST"),
+            Self::GET => String::from("GET"),
+            Self::PUT => String::from("PUT"),
+            Self::DELETE => String::from("DELETE"),
+            Self::HEAD => String::from("HEAD"),
+            Self::CONNECT => String::from("CONNECT"),
+            Self::TRACE => String::from("TRACE"),
+            Self::PATCH => String::from("PATCH"),
+        }
+    }
 }
 
 /// sessions_handle variable in ion won't update until next request
@@ -130,6 +189,7 @@ pub trait IonBuiltinBound = Fn(&[types::Str], &mut Shell) -> Status
     + for<'r, 's, 't0> std::ops::Fn(&'r [small::String], &'s mut ion_shell::Shell<'t0>) -> Status
     + Send;
 
+// for logging just use the debug trait you dumbass
 #[derive(Debug, Clone)]
 pub struct ServerState {
     remote_addr: SocketAddr,
@@ -139,6 +199,7 @@ pub struct ServerState {
     post: HashMap<String, String>,
     cookies: HashMap<String, String>,
     sessions: Arc<RwLock<HashMap<String, HashMap<String, String>>>>,
+    method: RequestMethod,
 }
 
 impl ServerState {
@@ -168,6 +229,7 @@ impl ServerState {
             post: post_params,
             cookies,
             sessions,
+            method: request.method().try_into().unwrap(),
         }
     }
 
@@ -277,10 +339,15 @@ impl ServerState {
             );
         }
 
+        let mut server_params = HashMap::new();
+        server_params.insert(string::from_string("REQUEST_METHOD".into()), Value::Str(string::from_string(self.method.to_string())));
+        server_params.insert(string::from_string("REMOTE_ADDR".into()), Value::Str(string::from_string(format!("{}", self.remote_addr))));
+
         shell.variables_mut().set("COOKIES", cookie_vals);
         shell.variables_mut().set("GET", get_params);
         shell.variables_mut().set("POST", post_params);
         shell.variables_mut().set("SESSION", session_params);
+        shell.variables_mut().set("SERVER", server_params);
 
         shell.builtins_mut().add("session_start", &start_session, "start active session accross HTTP requests functionally similar to php's session_start(), expects that the COOKIE variable is of type HashMap or hmap");
         shell.builtins_mut().add("set_session_variable", &set_session_closure, "sets a session variable held by the server in the form, variable_name, variable_value please not this won't update @SESSION variable");
@@ -321,4 +388,25 @@ impl ServerState {
         html_file.read_to_string(&mut contents).unwrap();
         (contents.into_bytes(), self.cookies)
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum LogLevel {
+    Silent,
+    Verbose,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Config {
+    pub root: PathBuf,
+    pub log: LogLevel,
+    pub listen: SocketAddr,
+    /// specify which request methods are alloweds
+    pub methods: Option<Vec<RequestMethod>>,
+    /// only these files can be executed
+    pub whitelist: Option<Vec<PathBuf>>,
+    /// these files or any file in these directories can't be executed even if the extension is .ion
+    pub blacklist: Option<Vec<PathBuf>>,
+    /// only these files should be served at all
+    pub servable: Option<Vec<PathBuf>>,
 }
