@@ -42,7 +42,9 @@ pub fn scrypt_hash(args: &[types::Str], _shell: &mut Shell) -> Status {
 pub fn scrypt_verify(args: &[types::Str], _shell: &mut Shell) -> Status {
     let parsed_hash = match PasswordHash::new(args[2].as_str()) {
         Ok(v) => v,
-        Err(e) => { return Status::error(format!("{}", e)); }
+        Err(e) => {
+            return Status::error(format!("{}", e));
+        }
     };
     match Scrypt.verify_password(args[1].as_bytes(), &parsed_hash) {
         Ok(_) => println!("true"),
@@ -55,20 +57,12 @@ pub fn scrypt_verify(args: &[types::Str], _shell: &mut Shell) -> Status {
     Status::SUCCESS
 }
 
-/*pub fn open_sqlite_conn(args: &[Str], _shell: &mut Shell) -> Status {
-    if(args.len() != 2) {
-        return Status::error("expected only one argument: dbname");
-    }
-    let connections = DBCONNS.write().unwrap();
-    if let Some(conn) = connections.get(args[1]) {
-        Status::SUCCESS
-    }else{
-        match sqlite::Connection::open(args[1]) {
-            Ok(conn) => {
-                connections.insert(args[1].clone(), conn);
-                Status::SUCCESS
-            },
-            Err(e) => Status::error("unable to open database connection")
-        }
-    }
-}*/
+pub fn bcrypt_hash(args: &[Str], _shell: &mut Shell) -> Status {
+    println!("{}", pwhash::bcrypt::hash(args[1].as_bytes()).unwrap());
+    Status::SUCCESS
+}
+
+pub fn bcrypt_verify(args: &[Str], _shell: &mut Shell) -> Status {
+    println!("{}", pwhash::bcrypt::verify(args[1].as_bytes(), args[2].as_str()));
+    Status::SUCCESS
+}

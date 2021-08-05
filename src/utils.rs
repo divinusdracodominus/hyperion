@@ -51,15 +51,3 @@ pub fn read_get(request: &Request<Body>) -> HashMap<String, String> {
         None => HashMap::new(),
     }
 }
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Config {
-    root: PathBuf,
-    libs: HashMap<PathBuf, Vec<String>>,
-}
-
-#[derive(StructOpt, Debug, Clone)]
-pub struct ConfigArgs {
-    #[structopt(long)]
-    pub config: Option<PathBuf>,
-}

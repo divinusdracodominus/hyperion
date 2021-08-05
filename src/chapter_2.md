@@ -29,3 +29,6 @@ let active = @SESSION["active"]
 ### SERVER Variable
 
 the SERVER variable provides information on the server, and the client that initiated the request. see [w3schools](https://www.w3schools.com/php/php_superglobals_server.asp) for more information. 
+
+### META Variable
+the META variable is custom to hyperion and aims to provide a more standardized means of accessing information such as content-encoding, and access control requests.

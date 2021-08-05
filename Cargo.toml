@@ -15,16 +15,10 @@ libloading = "*"
 ion-shell = {git = "https://github.com/redox-os/ion"}
 sqlite = "*"
 daemonize = "*"
-futures-util = "*"
-tokio = {features = ["full"]}
-tokio-rustls = "*"
-async-stream = "*"
 hyper = {version = "0.14.11", features = ["full"]}
 rustls = "*"
 serde = "*"
 serde_derive = "*"
-ron = "*"
-serde_json = "*"
 toml = "*"
 structopt = "*"
 walkdir = "*"
@@ -36,6 +30,9 @@ hex = "*"
 scrypt = "*"
 err-derive = "*"
 enum-utils = "*"
+tokio = {features = ["full"]}
+pwhash = "*"
+
 
 [build-dependencies]
 scrypt = "*"

@@ -11,8 +11,12 @@ extern crate serde_derive;
 extern crate lazy_static;
 #[macro_use]
 extern crate enum_utils;
+#[macro_use]
+extern crate err_derive;
 
+pub mod config;
 pub mod utils;
+use config::ConfigError;
 
 /// This module contains what is in essence a stdlib
 /// for the framework, of course due to the nature of ion
@@ -106,7 +110,7 @@ pub fn start_session(
     Status::SUCCESS
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, FromStr)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum RequestMethod {
     POST,
     GET,
@@ -118,10 +122,27 @@ pub enum RequestMethod {
     PATCH,
 }
 
+impl FromStr for RequestMethod {
+    type Err = ConfigError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "POST" => Self::POST,
+            "GET" => Self::GET,
+            "PUT" => Self::PUT,
+            "DELETE" => Self::DELETE,
+            "HEAD" => Self::HEAD,
+            "CONNECT" => Self::CONNECT,
+            "TRACE" => Self::TRACE,
+            "PATCH" => Self::PATCH,
+            _ => return Err(ConfigError::UReqMeth(s.to_string())),
+        })
+    }
+}
+
 impl TryFrom<&Method> for RequestMethod {
-    type Error = ();
+    type Error = ConfigError;
     fn try_from(method: &Method) -> Result<RequestMethod, Self::Error> {
-        method.as_str().parse()
+        RequestMethod::from_str(method.as_str())
     }
 }
 
@@ -198,6 +219,7 @@ pub struct ServerState {
     get: HashMap<String, String>,
     post: HashMap<String, String>,
     cookies: HashMap<String, String>,
+    server: HashMap<String, String>,
     sessions: Arc<RwLock<HashMap<String, HashMap<String, String>>>>,
     method: RequestMethod,
 }
@@ -228,6 +250,7 @@ impl ServerState {
             get: get_params,
             post: post_params,
             cookies,
+            server: HashMap::new(),
             sessions,
             method: request.method().try_into().unwrap(),
         }
@@ -340,8 +363,14 @@ impl ServerState {
         }
 
         let mut server_params = HashMap::new();
-        server_params.insert(string::from_string("REQUEST_METHOD".into()), Value::Str(string::from_string(self.method.to_string())));
-        server_params.insert(string::from_string("REMOTE_ADDR".into()), Value::Str(string::from_string(format!("{}", self.remote_addr))));
+        server_params.insert(
+            string::from_string("REQUEST_METHOD".into()),
+            Value::Str(string::from_string(self.method.to_string())),
+        );
+        server_params.insert(
+            string::from_string("REMOTE_ADDR".into()),
+            Value::Str(string::from_string(format!("{}", self.remote_addr))),
+        );
 
         shell.variables_mut().set("COOKIES", cookie_vals);
         shell.variables_mut().set("GET", get_params);
@@ -361,6 +390,8 @@ impl ServerState {
             &builtins::scrypt_verify,
             "verify password with hash",
         );
+        shell.builtins_mut().add("bcrypt_hash", &builtins::bcrypt_hash, "hash using bcrypt algorithim");
+        shell.builtins_mut().add("bcrypt_verify", &builtins::bcrypt_verify, "verify bcrypt hash");
         //shell.builtins_mut().add("md5_hash_password", &md5_hash_password, "generate hash using md5 algorithim");
         //shell.builtins_mut().add("md5_verify", &md5_verify, "verify hashes");
         if let Ok(file) = File::open(ion_path) {
@@ -388,25 +419,4 @@ impl ServerState {
         html_file.read_to_string(&mut contents).unwrap();
         (contents.into_bytes(), self.cookies)
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum LogLevel {
-    Silent,
-    Verbose,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Config {
-    pub root: PathBuf,
-    pub log: LogLevel,
-    pub listen: SocketAddr,
-    /// specify which request methods are alloweds
-    pub methods: Option<Vec<RequestMethod>>,
-    /// only these files can be executed
-    pub whitelist: Option<Vec<PathBuf>>,
-    /// these files or any file in these directories can't be executed even if the extension is .ion
-    pub blacklist: Option<Vec<PathBuf>>,
-    /// only these files should be served at all
-    pub servable: Option<Vec<PathBuf>>,
 }
