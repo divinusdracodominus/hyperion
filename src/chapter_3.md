@@ -1,5 +1,7 @@
 # Server Configurations
 
+hyperion configurations are stored local to a project, like node.js, however the primary config file is implicitly blacklisted from any route, so as to not leak information that could allow someone to take advantage of an exploit, such as a missing redirect, or open execution capabilities. This also means that the config file can't be written to. the location of the config file however, may change to a completely seperate directory, that is a sibiling of the root of the project, in order to further prevent tampering, however now it is used as a test of the blacklisting capabilities of hyperion.
+
 ### Example Configuration file
 ```toml
 root = "/cardinal/hyperion/html"

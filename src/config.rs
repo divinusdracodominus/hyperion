@@ -1,8 +1,12 @@
 use crate::RequestMethod;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
 use structopt::StructOpt;
+use std::fs::File;
+use std::io::Read;
+use rayon::prelude::*;
 
 #[derive(Debug, Clone, Error)]
 pub enum ConfigError {
@@ -49,6 +53,8 @@ pub struct CommandArgs {
     /// supplied in the form ["login.html=check.ion", "upload.html=upload.ion"]
     #[structopt(long)]
     pub controllers: Vec<AccessController>,
+    #[structopt(long)]
+    pub notfound: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Copy)]
@@ -90,6 +96,8 @@ pub struct Config {
     pub servable: Option<Vec<PathBuf>>,
     /// provides mappings for various paths/files to ensure only authorized participants have access
     pub controllers: Option<Vec<AccessController>>,
+    /// set a custom url for when a page can't be found, or is black listed
+    pub notfound: Option<PathBuf>,
 }
 
 impl From<CommandArgs> for Config {
@@ -133,6 +141,7 @@ impl From<CommandArgs> for Config {
             blacklist,
             servable,
             controllers,
+            notfound: args.notfound,
         }
     }
 }
@@ -148,6 +157,7 @@ impl Default for Config {
             blacklist: None,
             servable: None,
             controllers: None,
+            notfound: None,
         }
     }
 }
@@ -192,4 +202,79 @@ fn example_config() {
     let result = toml::to_string(&config).unwrap();
     println!("{}", result);
     panic!();
+}
+
+// thinking how should I cache directory tree
+pub struct AccessHandler {
+    root: PathBuf,
+    controllers: Vec<AccessController>,
+    paths: Vec<PathBuf>,
+    notfound: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum QueryResult {
+    Redirect(PathBuf),
+    Plain(PathBuf),
+    /// this is a String because notfound.html is cached
+    NotFound(String),
+}
+
+impl AccessHandler {
+    pub fn new(config: &Config) -> Self {
+        let paths = match &config.whitelist {
+            Some(list) => list.clone(),
+            None => {
+                if let Some(blacklist) = &config.blacklist {
+                    walkdir::WalkDir::new(&config.root)
+                        .into_iter()
+                        .map(|v| PathBuf::new().join(v.unwrap().path()))
+                        .filter(|v| !blacklist.contains(v))
+                        .collect::<Vec<PathBuf>>()
+                } else {
+                    walkdir::WalkDir::new(&config.root)
+                        .into_iter()
+                        .map(|v| PathBuf::new().join(v.unwrap().path()))
+                        .filter(|v| v != &config.root.join("config.toml"))
+                        .collect::<Vec<PathBuf>>()
+                }
+            }
+        };
+        Self {
+            root: config.root.clone(),
+            paths,
+            controllers: config.controllers.clone().unwrap_or_default(),
+            notfound: config.notfound.as_ref().map_or_else(|| {crate::NOTFOUND.to_string()}, |v| {
+                let mut file = File::open(&v).unwrap();
+                let mut contents = String::new();
+                file.read_to_string(&mut contents);
+                contents
+            }),
+        }
+    }
+    pub fn check_path(&self, conf_path: &Path) -> QueryResult {
+        let in_path = self.root.join(&conf_path);
+        let (path, redirected) = match self
+            .controllers
+            .par_iter()
+            .map(|c| {
+                c.resource == self.root.join(&in_path);
+                c.controller.clone()
+            })
+            .collect::<Vec<PathBuf>>()
+            .pop()
+        {
+            Some(val) => (val, true),
+            None => (PathBuf::new().join(in_path), false),
+        };
+        if self.paths.contains(&PathBuf::new().join(&path)) {
+            if redirected {
+                QueryResult::Redirect(PathBuf::new().join(path))
+            }else{
+                QueryResult::Plain(PathBuf::new().join(path))
+            }
+        }else{
+            QueryResult::NotFound(self.notfound.clone())
+        }
+    }
 }

@@ -23,7 +23,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         std::fs::create_dir(&new).unwrap();
         std::env::set_current_dir(&new).unwrap();
         let mut config: Config = args.clone().into();
-        let config_path = PathBuf::new().join(std::env::current_dir().unwrap()).join("config.toml");
+        let config_path = PathBuf::new()
+            .join(std::env::current_dir().unwrap())
+            .join("config.toml");
         println!("creating config file in: {}", config_path.display());
         let mut config_file = std::fs::File::create(&config_path).unwrap();
         if config.whitelist.is_none() {
@@ -33,7 +35,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 config.blacklist = Some(vec![config_path]);
             }
         }
-        config_file.write_all(toml::to_string(&config).unwrap().as_bytes()).unwrap();
+        config_file
+            .write_all(toml::to_string(&config).unwrap().as_bytes())
+            .unwrap();
         return Ok(());
         //config
     } else if let Some(config) = args.config {
@@ -65,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         //tokio::task::spawn(async move {
 
         let session_cloner = SESSIONS.clone();
-
+        let config_clone = config.clone();
         if let Err(http_err) = Http::new()
             .http1_only(true)
             .http1_keep_alive(true)
@@ -73,17 +77,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 tcp_stream,
                 service_fn(move |mut request| {
                     let session_handle = session_cloner.clone();
-
+                    let local_clone = config_clone.clone();
                     async move {
                         let state = hyperion::ServerState::load(
                             &mut request,
                             ipaddr,
                             session_handle.clone(),
-                            None,
                         )
                         .await;
                         let (result, cookies) = tokio::task::spawn_blocking(move || {
                             state.run_script(
+                                local_clone.clone(),
                                 |args, shell| {
                                     hyperion::set_session_variable(
                                         args,

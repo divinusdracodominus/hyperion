@@ -1,4 +1,6 @@
 use ion_shell::{builtins::Status, types, types::Str, Shell};
+use rand::distributions::Alphanumeric;
+use rand::Rng;
 use small::string::String as string;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -58,11 +60,16 @@ pub fn scrypt_verify(args: &[types::Str], _shell: &mut Shell) -> Status {
 }
 
 pub fn bcrypt_hash(args: &[Str], _shell: &mut Shell) -> Status {
+    
     println!("{}", pwhash::bcrypt::hash(args[1].as_bytes()).unwrap());
     Status::SUCCESS
 }
 
 pub fn bcrypt_verify(args: &[Str], _shell: &mut Shell) -> Status {
-    println!("{}", pwhash::bcrypt::verify(args[1].as_bytes(), args[2].as_str()));
+    // println is used instead of return because ion captures stdout when the command is run
+    println!(
+        "{}",
+        pwhash::bcrypt::verify(args[1].as_bytes(), args[2].as_str())
+    );
     Status::SUCCESS
 }

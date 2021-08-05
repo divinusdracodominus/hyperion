@@ -1,0 +1,6 @@
+thread 'tokio-runtime-worker' panicked at 'called `Result::unwrap()` on an `Err` value: InvalidHashString', src/builtins.rs:61:78
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+thread 'main' panicked at 'called `Result::unwrap()` on an `Err` value: JoinError::Panic(...)', src/main.rs:100:26
+thread 'tokio-runtime-worker' panicked at 'called `Result::unwrap()` on an `Err` value: InvalidHashString', src/builtins.rs:68:78
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+thread 'main' panicked at 'called `Result::unwrap()` on an `Err` value: JoinError::Panic(...)', src/main.rs:100:26

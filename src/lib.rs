@@ -17,6 +17,7 @@ extern crate err_derive;
 pub mod config;
 pub mod utils;
 use config::ConfigError;
+use rayon::prelude::*;
 
 /// This module contains what is in essence a stdlib
 /// for the framework, of course due to the nature of ion
@@ -74,8 +75,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::time::{Duration, SystemTime};
+use crate::config::{AccessHandler, Config, QueryResult};
+use std::path::Path;
 
-const NOTFOUND: &'static str = include_str!("notfound.html");
+pub (crate) const NOTFOUND: &'static str = include_str!("notfound.html");
 
 /// builtin function that sets up an individual session, specifically it generates teh session ID, and sets SESSIONID variable in ion
 /// this also creates a new entry in the global session table, aka Arc<RwLock<HashMap<String, HashMap<String, String>>>> that maps
@@ -210,11 +213,17 @@ pub trait IonBuiltinBound = Fn(&[types::Str], &mut Shell) -> Status
     + for<'r, 's, 't0> std::ops::Fn(&'r [small::String], &'s mut ion_shell::Shell<'t0>) -> Status
     + Send;
 
+fn read_file<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, std::io::Error> {
+    let mut file = File::open(path)?;
+    let mut string = Vec::new();
+    file.read_to_end(&mut string)?;
+    Ok(string)
+}
+
 // for logging just use the debug trait you dumbass
 #[derive(Debug, Clone)]
 pub struct ServerState {
     remote_addr: SocketAddr,
-    root: PathBuf,
     path: PathBuf,
     get: HashMap<String, String>,
     post: HashMap<String, String>,
@@ -229,7 +238,6 @@ impl ServerState {
         request: &mut Request<Body>,
         remote_addr: SocketAddr,
         sessions: Arc<RwLock<HashMap<String, HashMap<String, String>>>>,
-        root: Option<PathBuf>,
     ) -> Self {
         let path = if let Some(path) = request.uri().path().strip_prefix('/') {
             PathBuf::new().join(path)
@@ -245,7 +253,6 @@ impl ServerState {
         let cookies = utils::read_cookies(request).await;
         Self {
             remote_addr,
-            root: root.unwrap_or_else(|| std::env::current_dir().unwrap()),
             path,
             get: get_params,
             post: post_params,
@@ -258,6 +265,7 @@ impl ServerState {
 
     pub fn run_script<F, T>(
         mut self,
+        config: Config,
         set_session_closure: F,
         start_session: T,
     ) -> (Vec<u8>, HashMap<String, String>)
@@ -273,31 +281,28 @@ impl ServerState {
                 &'s mut ion_shell::Shell<'t0>,
             ) -> Status,
     {
-        let query_path = PathBuf::new()
-            .join(std::env::current_dir().unwrap())
-            .join(&self.path);
-        let ion_path = if let Some(extension) = query_path.extension() {
-            if !query_path.exists() {
-                return (String::from(NOTFOUND).into_bytes(), self.cookies);
-            } else {
-                if extension == "ion" {
-                    query_path
-                } else {
-                    let mut query_file = std::fs::File::open(&query_path).unwrap();
-                    let mut content = Vec::new();
-                    query_file.read_to_end(&mut content).unwrap();
-                    return (content, self.cookies);
+        let handler = AccessHandler::new(&config);
+        let ion_path = match handler.check_path(&self.path) {
+            QueryResult::NotFound(text) => {
+                return (text.into_bytes(), self.cookies);
+            },
+            QueryResult::Redirect(file) => {
+                file
+            },
+            QueryResult::Plain(file) => {
+                match file.extension() {
+                    Some(ext) => {
+                        if ext == "ion" {
+                            file
+                        }else{
+                            return (read_file(&file).unwrap(), self.cookies);
+                        }
+                    },
+                    None => {
+                        return (read_file(&file).unwrap(), self.cookies);
+                    },
                 }
-            }
-        } else {
-            if !query_path.exists() {
-                return (String::from(NOTFOUND).into_bytes(), self.cookies);
-            } else {
-                let mut query_file = std::fs::File::open(&query_path).unwrap();
-                let mut content = Vec::new();
-                query_file.read_to_end(&mut content).unwrap();
-                return (content, self.cookies);
-            }
+            },
         };
         let mut shell = Shell::new();
 
@@ -390,8 +395,16 @@ impl ServerState {
             &builtins::scrypt_verify,
             "verify password with hash",
         );
-        shell.builtins_mut().add("bcrypt_hash", &builtins::bcrypt_hash, "hash using bcrypt algorithim");
-        shell.builtins_mut().add("bcrypt_verify", &builtins::bcrypt_verify, "verify bcrypt hash");
+        shell.builtins_mut().add(
+            "bcrypt_hash",
+            &builtins::bcrypt_hash,
+            "hash using bcrypt algorithim",
+        );
+        shell.builtins_mut().add(
+            "bcrypt_verify",
+            &builtins::bcrypt_verify,
+            "verify bcrypt hash",
+        );
         //shell.builtins_mut().add("md5_hash_password", &md5_hash_password, "generate hash using md5 algorithim");
         //shell.builtins_mut().add("md5_verify", &md5_verify, "verify hashes");
         if let Ok(file) = File::open(ion_path) {

@@ -3,8 +3,8 @@ let username = @POST["username"]
 let password = @POST["password"]
 let email = @POST["email"]
 
-let hashed = $(scrypt_hash "$password" ^>> stderr.txt)
-let result = $(scrypt_verify "random" "$hashed" ^>> stderr2.txt)
+let hashed = $(bcrypt_hash "$password" ^>> stderr.txt)
+let result = $(bcrypt_verify "random" "$hashed" ^>> stderr2.txt)
 
 if test $result == "true"
     session_start

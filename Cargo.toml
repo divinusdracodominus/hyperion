@@ -32,7 +32,7 @@ err-derive = "*"
 enum-utils = "*"
 tokio = {features = ["full"]}
 pwhash = "*"
-
+rayon = "*"
 
 [build-dependencies]
 scrypt = "*"
