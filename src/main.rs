@@ -1,4 +1,5 @@
 #![feature(async_closure)]
+#![allow(bad_style)]
 
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
@@ -7,7 +8,6 @@ use hyperion::config::{CommandArgs, Config};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use structopt::StructOpt;
@@ -15,8 +15,6 @@ use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let addr: SocketAddr = ([127, 0, 0, 1], 8080).into();
-
     let args: CommandArgs = CommandArgs::from_args();
 
     let config: Config = if let Some(new) = &args.new {

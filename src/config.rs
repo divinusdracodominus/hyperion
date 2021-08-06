@@ -1,12 +1,12 @@
 use crate::RequestMethod;
+use rayon::prelude::*;
+use std::fs::File;
+use std::io::Read;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
 use structopt::StructOpt;
-use std::fs::File;
-use std::io::Read;
-use rayon::prelude::*;
 
 #[derive(Debug, Clone, Error)]
 pub enum ConfigError {
@@ -55,6 +55,8 @@ pub struct CommandArgs {
     pub controllers: Vec<AccessController>,
     #[structopt(long)]
     pub notfound: Option<PathBuf>,
+    /// web sockets to listen on
+    pub sockets: Vec<SocketAddr>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Copy)]
@@ -98,34 +100,42 @@ pub struct Config {
     pub controllers: Option<Vec<AccessController>>,
     /// set a custom url for when a page can't be found, or is black listed
     pub notfound: Option<PathBuf>,
+    /// address to listen on for web sockets
+    pub sockets: Option<Vec<SocketAddr>>,
 }
 
 impl From<CommandArgs> for Config {
     fn from(args: CommandArgs) -> Config {
-        let methods = if args.methods.len() == 0 {
+        let methods = if args.methods.is_empty() {
             None
         } else {
             Some(args.methods)
         };
-        let whitelist = if args.whitelist.len() == 0 {
+        let whitelist = if args.whitelist.is_empty() {
             None
         } else {
             Some(args.whitelist)
         };
-        let blacklist = if args.blacklist.len() == 0 {
+        let blacklist = if args.blacklist.is_empty() {
             None
         } else {
             Some(args.blacklist)
         };
-        let servable = if args.servable.len() == 0 {
+        let servable = if args.servable.is_empty() {
             None
         } else {
             Some(args.servable)
         };
-        let controllers = if args.controllers.len() == 0 {
+        let controllers = if args.controllers.is_empty() {
             None
         } else {
             Some(args.controllers)
+        };
+
+        let sockets = if args.sockets.is_empty() {
+            None
+        } else {
+            Some(args.sockets)
         };
 
         Config {
@@ -142,6 +152,7 @@ impl From<CommandArgs> for Config {
             servable,
             controllers,
             notfound: args.notfound,
+            sockets,
         }
     }
 }
@@ -158,10 +169,14 @@ impl Default for Config {
             servable: None,
             controllers: None,
             notfound: None,
+            sockets: None,
         }
     }
 }
 
+/// maps resource to a access control script
+/// for example if the client requeusts /loggedin.html a redirect
+/// can be performed that causes this request to be handled by loggedin.ion
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccessController {
     pub resource: PathBuf,
@@ -171,7 +186,7 @@ pub struct AccessController {
 impl FromStr for AccessController {
     type Err = ConfigError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts = s.split("=").collect::<Vec<&str>>();
+        let parts = s.split('=').collect::<Vec<&str>>();
         Ok(if let Some(first) = parts.get(0) {
             if let Some(second) = parts.get(1) {
                 Self {
@@ -244,12 +259,15 @@ impl AccessHandler {
             root: config.root.clone(),
             paths,
             controllers: config.controllers.clone().unwrap_or_default(),
-            notfound: config.notfound.as_ref().map_or_else(|| {crate::NOTFOUND.to_string()}, |v| {
-                let mut file = File::open(&v).unwrap();
-                let mut contents = String::new();
-                file.read_to_string(&mut contents);
-                contents
-            }),
+            notfound: config.notfound.as_ref().map_or_else(
+                || crate::NOTFOUND.to_string(),
+                |v| {
+                    let mut file = File::open(&v).unwrap();
+                    let mut contents = String::new();
+                    file.read_to_string(&mut contents).unwrap();
+                    contents
+                },
+            ),
         }
     }
     pub fn check_path(&self, conf_path: &Path) -> QueryResult {
@@ -257,10 +275,8 @@ impl AccessHandler {
         let (path, redirected) = match self
             .controllers
             .par_iter()
-            .map(|c| {
-                c.resource == self.root.join(&in_path);
-                c.controller.clone()
-            })
+            .filter(|c| c.resource == self.root.join(&in_path))
+            .map(|c| c.controller.clone())
             .collect::<Vec<PathBuf>>()
             .pop()
         {
@@ -270,10 +286,10 @@ impl AccessHandler {
         if self.paths.contains(&PathBuf::new().join(&path)) {
             if redirected {
                 QueryResult::Redirect(PathBuf::new().join(path))
-            }else{
+            } else {
                 QueryResult::Plain(PathBuf::new().join(path))
             }
-        }else{
+        } else {
             QueryResult::NotFound(self.notfound.clone())
         }
     }

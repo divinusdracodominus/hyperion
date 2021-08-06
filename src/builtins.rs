@@ -1,9 +1,5 @@
 use ion_shell::{builtins::Status, types, types::Str, Shell};
-use rand::distributions::Alphanumeric;
-use rand::Rng;
-use small::string::String as string;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
 
 /// this type alias serves as a means of documenting "@SESSION" variable set in ion
 /// on each request "@SESSION" is loaded from an Arc<RwLock<HashMap<String, HashMap<String, String>>>>
@@ -60,7 +56,6 @@ pub fn scrypt_verify(args: &[types::Str], _shell: &mut Shell) -> Status {
 }
 
 pub fn bcrypt_hash(args: &[Str], _shell: &mut Shell) -> Status {
-    
     println!("{}", pwhash::bcrypt::hash(args[1].as_bytes()).unwrap());
     Status::SUCCESS
 }

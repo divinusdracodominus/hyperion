@@ -2,3 +2,7 @@ root = "/cardinal/hyperion/html"
 log = "silent"
 listen = "127.0.0.1:8080"
 blacklist = ["/cardinal/hyperion/html/config.toml"]
+
+[[controllers]]
+resource = "loggedin.html"
+controller = "loggedin.ion"

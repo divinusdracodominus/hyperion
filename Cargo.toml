@@ -33,6 +33,8 @@ enum-utils = "*"
 tokio = {features = ["full"]}
 pwhash = "*"
 rayon = "*"
+serde_json = "*"
+ws = "*"
 
 [build-dependencies]
 scrypt = "*"

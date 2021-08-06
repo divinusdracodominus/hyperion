@@ -2,4 +2,5 @@ tell hector about time off
 call nephrology about booster
 reschedule eye appointment
 schedule ortho appointment
+schedule dentist appointment
 job applications

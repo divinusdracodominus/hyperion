@@ -1,7 +1,5 @@
 use hyper::{body::HttpBody, Body, Request};
 use std::collections::HashMap;
-use std::path::PathBuf;
-use structopt::StructOpt;
 /// read cookies from request.headers
 pub async fn read_cookies(request: &Request<Body>) -> HashMap<String, String> {
     let mut cookie_map: HashMap<String, String> = HashMap::new();

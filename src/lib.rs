@@ -5,19 +5,18 @@
     gets uploaded
 */
 #![feature(trait_alias)]
+#![allow(bad_style)]
 #[macro_use]
 extern crate serde_derive;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate enum_utils;
 #[macro_use]
 extern crate err_derive;
 
 pub mod config;
+/// this module contains utilities for the websocket
+/// api provided by this crate
+pub mod socket;
 pub mod utils;
 use config::ConfigError;
-use rayon::prelude::*;
 
 /// This module contains what is in essence a stdlib
 /// for the framework, of course due to the nature of ion
@@ -59,6 +58,7 @@ pub mod builtins;
 /// plugins, still under construction
 pub mod modules;
 
+use crate::config::{AccessHandler, Config, QueryResult};
 use hyper::{Body, Method, Request};
 use ion_shell::{builtins::Status, types, types::Function, Shell, Value};
 use rand::distributions::Alphanumeric;
@@ -69,16 +69,15 @@ use std::convert::{TryFrom, TryInto};
 use std::fs::File;
 use std::io::Read;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::time::{Duration, SystemTime};
-use crate::config::{AccessHandler, Config, QueryResult};
-use std::path::Path;
 
-pub (crate) const NOTFOUND: &'static str = include_str!("notfound.html");
+pub(crate) const NOTFOUND: &str = include_str!("notfound.html");
 
 /// builtin function that sets up an individual session, specifically it generates teh session ID, and sets SESSIONID variable in ion
 /// this also creates a new entry in the global session table, aka Arc<RwLock<HashMap<String, HashMap<String, String>>>> that maps
@@ -244,7 +243,7 @@ impl ServerState {
         } else {
             PathBuf::new().join(request.uri().path())
         };
-        let get_params = utils::read_get(&request);
+        let get_params = utils::read_get(request);
         let post_params = if request.method() == Method::POST {
             utils::read_post(request).await
         } else {
@@ -285,22 +284,18 @@ impl ServerState {
         let ion_path = match handler.check_path(&self.path) {
             QueryResult::NotFound(text) => {
                 return (text.into_bytes(), self.cookies);
-            },
-            QueryResult::Redirect(file) => {
-                file
-            },
-            QueryResult::Plain(file) => {
-                match file.extension() {
-                    Some(ext) => {
-                        if ext == "ion" {
-                            file
-                        }else{
-                            return (read_file(&file).unwrap(), self.cookies);
-                        }
-                    },
-                    None => {
+            }
+            QueryResult::Redirect(file) => file,
+            QueryResult::Plain(file) => match file.extension() {
+                Some(ext) => {
+                    if ext == "ion" {
+                        file
+                    } else {
                         return (read_file(&file).unwrap(), self.cookies);
-                    },
+                    }
+                }
+                None => {
+                    return (read_file(&file).unwrap(), self.cookies);
                 }
             },
         };
@@ -405,8 +400,6 @@ impl ServerState {
             &builtins::bcrypt_verify,
             "verify bcrypt hash",
         );
-        //shell.builtins_mut().add("md5_hash_password", &md5_hash_password, "generate hash using md5 algorithim");
-        //shell.builtins_mut().add("md5_verify", &md5_verify, "verify hashes");
         if let Ok(file) = File::open(ion_path) {
             if let Err(why) = shell.execute_command(file) {
                 println!("ERROR: my-application: error in config file: {}", why);
