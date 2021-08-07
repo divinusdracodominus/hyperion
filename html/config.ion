@@ -1,7 +1,10 @@
-let query = @GET["variable1"];
+let query = @GET["variable1"]
 let username = @POST["username"]
 let password = @POST["password"]
 let email = @POST["email"]
+let x = [1,2,3,4]
+
+print_map 
 
 let hashed = $(bcrypt_hash "$password" ^>> stderr.txt)
 let result = $(bcrypt_verify "random" "$hashed" ^>> stderr2.txt)

@@ -13,7 +13,7 @@ license = "MIT"
 [dependencies]
 libloading = "*"
 ion-shell = {git = "https://github.com/redox-os/ion"}
-sqlite = "*"
+rusqlite = "*"
 daemonize = "*"
 hyper = {version = "0.14.11", features = ["full"]}
 rustls = "*"
@@ -35,6 +35,8 @@ pwhash = "*"
 rayon = "*"
 serde_json = "*"
 ws = "*"
+argon2 = "*"
+
 
 [build-dependencies]
 scrypt = "*"

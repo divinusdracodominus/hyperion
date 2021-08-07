@@ -380,26 +380,7 @@ impl ServerState {
 
         shell.builtins_mut().add("session_start", &start_session, "start active session accross HTTP requests functionally similar to php's session_start(), expects that the COOKIE variable is of type HashMap or hmap");
         shell.builtins_mut().add("set_session_variable", &set_session_closure, "sets a session variable held by the server in the form, variable_name, variable_value please not this won't update @SESSION variable");
-        shell.builtins_mut().add(
-            "scrypt_hash",
-            &builtins::scrypt_hash,
-            "hash the contents of args[1] writing the hex encoded result to stdout",
-        );
-        shell.builtins_mut().add(
-            "scrypt_verify",
-            &builtins::scrypt_verify,
-            "verify password with hash",
-        );
-        shell.builtins_mut().add(
-            "bcrypt_hash",
-            &builtins::bcrypt_hash,
-            "hash using bcrypt algorithim",
-        );
-        shell.builtins_mut().add(
-            "bcrypt_verify",
-            &builtins::bcrypt_verify,
-            "verify bcrypt hash",
-        );
+        builtins::load_builtins(&mut shell);
         if let Ok(file) = File::open(ion_path) {
             if let Err(why) = shell.execute_command(file) {
                 println!("ERROR: my-application: error in config file: {}", why);

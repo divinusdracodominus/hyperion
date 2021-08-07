@@ -68,3 +68,41 @@ pub fn bcrypt_verify(args: &[Str], _shell: &mut Shell) -> Status {
     );
     Status::SUCCESS
 }
+
+pub fn print_map(args: &[Str], _shell: &mut Shell) -> Status{
+    println!("{:?}", args);
+    Status::SUCCESS
+}
+
+pub fn sqlite_exec(args: &[Str], _shell: &mut Shell) -> Status {
+    /*let connection = match Connection::open(args[1].as_str()) {
+        Ok(conn) => conn,
+        Err(e) => return Status::error(format!("{}", e)),
+    };*/
+    /*connection.execute(args[2].as_str(), args[3]);*/
+    Status::SUCCESS
+}
+
+pub fn load_builtins(shell: &mut Shell) {
+    shell.builtins_mut().add("print_map", &print_map, "prints a hashmap");
+    shell.builtins_mut().add(
+        "scrypt_hash",
+        &scrypt_hash,
+        "hash the contents of args[1] writing the hex encoded result to stdout",
+    );
+    shell.builtins_mut().add(
+        "scrypt_verify",
+        &scrypt_verify,
+        "verify password with hash",
+    );
+    shell.builtins_mut().add(
+        "bcrypt_hash",
+        &bcrypt_hash,
+        "hash using bcrypt algorithim",
+    );
+    shell.builtins_mut().add(
+        "bcrypt_verify",
+        &bcrypt_verify,
+        "verify bcrypt hash",
+    );
+}
